@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0a0e27" />
+<title>星座盤</title>
+
+<!-- PWA / iOS ホーム画面追加対応 -->
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="星座盤" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+<!-- フォント -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500&family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet" />
+
+<style>
+  /* ============ Reset / Base ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  :root {
+    --bg-deep: #0a0e27;
+    --bg-mid: #101d3f;
+    --bg-low: #0d1b2a;
+
+    --text-main: #c8d6e5;
+    --text-bright: #f0f4f8;
+    --text-sub: #6b7fa3;
+    --text-soft: #a8b8d0;
+
+    --accent-deep: #2a4a7f;
+    --accent-shadow: #1a3a6a;
+
+    --moon: #d4e0ed;
+  }
+
+  body {
+    background-color: var(--bg-low);
+    color: var(--text-main);
+    font-family: 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+    font-weight: 400;
+    line-height: 1.7;
+    letter-spacing: 0.05em;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(ellipse at 50% 30%, var(--bg-mid) 0%, var(--bg-deep) 60%, var(--bg-low) 100%);
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    padding: calc(env(safe-area-inset-top) + 1.5rem) 1rem calc(env(safe-area-inset-bottom) + 1rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ============ 背景：装飾用の星々 ============ */
+  .bg-stars {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .bg-stars .bg-star {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--moon);
+    opacity: 0.3;
+    animation: bg-twinkle ease-in-out infinite;
+  }
+  @keyframes bg-twinkle {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ============ ヘッダー ============ */
+  .header {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 0.8rem;
+  }
+  .title {
+    font-size: 1.4rem;
+    letter-spacing: 0.8em;
+    text-indent: 0.8em;
+    color: var(--text-bright);
+    font-weight: 500;
+    margin-bottom: 0.6rem;
+  }
+  .info {
+    font-family: 'Cormorant Garamond', 'Shippori Mincho', serif;
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    letter-spacing: 0.2em;
+    line-height: 1.7;
+    font-weight: 300;
+  }
+  .coords {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+  }
+
+  /* ============ 星座盤本体（画面中央に固定） ============ */
+  .main {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    pointer-events: none;
+  }
+  .disk-wrap {
+    width: min(90vw, 380px);
+    aspect-ratio: 1 / 1;
+    pointer-events: auto;
+  }
+  .disk {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .dir-text {
+    fill: var(--text-sub);
+    font-size: 8px;
+    font-family: 'Shippori Mincho', serif;
+    letter-spacing: 0.1em;
+  }
+  .star-group { cursor: pointer; }
+
+  /* ============ 一言メッセージ（枠なし、画面下方に浮かぶ） ============ */
+  .remark-float {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 8vh);
+    transform: translateX(-50%);
+    width: min(90vw, 380px);
+    text-align: center;
+    z-index: 5;
+    animation: float-in 1.2s ease;
+    pointer-events: none;
+  }
+  .remark {
+    font-size: 0.95rem;
+    color: var(--text-main);
+    letter-spacing: 0.18em;
+    line-height: 1.8;
+    opacity: 0.85;
+    text-shadow: 0 0 12px rgba(10, 14, 39, 0.8), 0 0 4px rgba(10, 14, 39, 0.9);
+   white-space: pre-line;
+  }
+  .loc-note {
+    margin-top: 0.6rem;
+    font-size: 0.7rem;
+    color: var(--text-sub);
+    letter-spacing: 0.1em;
+    opacity: 0.7;
+    text-shadow: 0 0 8px rgba(10, 14, 39, 0.8);
+   white-space: pre-line;
+  }
+  @keyframes float-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* ============ 逸話オーバーレイ（半透明の和紙） ============ */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    cursor: pointer;
+  }
+  .tale-float {
+    position: fixed;
+    left: 50%;
+    top: 58%;
+    transform: translate(-50%, -50%);
+    width: min(86vw, 360px);
+    z-index: 6;
+    animation: tale-in 0.7s cubic-bezier(0.2, 0.7, 0.3, 1);
+    cursor: pointer;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(212, 224, 237, 0.10) 0%, transparent 65%),
+      linear-gradient(180deg, rgba(42, 74, 127, 0.32) 0%, rgba(26, 58, 106, 0.36) 50%, rgba(13, 27, 42, 0.40) 100%),
+      rgba(10, 14, 39, 0.15);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 12%, black 88%, transparent 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, black 12%, black 88%, transparent 100%);
+    -webkit-backdrop-filter: blur(6px) saturate(1.1);
+    backdrop-filter: blur(6px) saturate(1.1);
+    border: 1px solid rgba(212, 224, 237, 0.12);
+    border-radius: 3px;
+    box-shadow: 0 0 40px rgba(10, 14, 39, 0.4), inset 0 0 30px rgba(212, 224, 237, 0.04);
+  }
+  .tale-inner {
+    padding: 2rem 1.6rem;
+    color: #e8eef5;
+  }
+  .star-name {
+    font-size: 1.05rem;
+    color: var(--text-bright);
+    letter-spacing: 0.2em;
+    margin-bottom: 0.3rem;
+    text-align: center;
+    text-shadow: 0 0 12px rgba(10, 14, 39, 0.7);
+  }
+  .constellation {
+    font-size: 0.8rem;
+    color: var(--text-soft);
+    letter-spacing: 0.25em;
+    margin-bottom: 1rem;
+    text-align: center;
+    text-shadow: 0 0 8px rgba(10, 14, 39, 0.7);
+  }
+  .tale-text {
+    font-size: 0.9rem;
+    line-height: 2;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 10px rgba(10, 14, 39, 0.6);
+  }
+  @keyframes tale-in {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+  }
+</style>
+</head>
+<body>
+
+<!-- 背景の装飾星 -->
+<div class="bg-stars" id="bg-stars"></div>
+
+<!-- アプリ本体 -->
+<div id="app">
+
+  <!-- ヘッダー -->
+  <header class="header">
+    <div class="title">星　座　盤</div>
+    <div class="info">
+      <div id="date-time"></div>
+      <div class="coords" id="coords"></div>
+    </div>
+  </header>
+
+  <!-- 星座盤（画面中央に絶対配置） -->
+  <main class="main">
+    <div class="disk-wrap">
+      <svg id="disk" class="disk" viewBox="-180 -180 360 360"></svg>
+    </div>
+  </main>
+
+  <!-- オーバーレイ（一言 or 逸話、JSで切替） -->
+  <div id="overlay-area"></div>
+
+</div>
+
+<script>
+/* ============================================================
+   星座盤 ── 武家世界観のプラネタリウム
+   ============================================================ */
+
+/* -------- 主要恒星データ -------- */
+const STARS = [
+  { ra: 2.530, dec: 89.264, mag: 1.97, name: '北極星', jname: 'ポラリス', con: 'こぐま座' },
+  { ra: 11.062, dec: 61.751, mag: 1.79, name: 'ドゥベー', jname: 'ドゥベー', con: 'おおぐま座' },
+  { ra: 11.030, dec: 56.382, mag: 2.37, name: 'メラク', jname: 'メラク', con: 'おおぐま座' },
+  { ra: 11.897, dec: 53.695, mag: 2.44, name: 'フェクダ', jname: 'フェクダ', con: 'おおぐま座' },
+  { ra: 12.257, dec: 57.033, mag: 3.31, name: 'メグレズ', jname: 'メグレズ', con: 'おおぐま座' },
+  { ra: 12.900, dec: 55.960, mag: 1.77, name: 'アリオト', jname: 'アリオト', con: 'おおぐま座' },
+  { ra: 13.398, dec: 54.926, mag: 2.27, name: 'ミザール', jname: 'ミザール', con: 'おおぐま座' },
+  { ra: 13.792, dec: 49.313, mag: 1.86, name: 'アルカイド', jname: 'アルカイド', con: 'おおぐま座' },
+  { ra: 0.140, dec: 60.717, mag: 2.15, name: 'カフ', jname: 'カフ', con: 'カシオペア座' },
+  { ra: 0.675, dec: 56.537, mag: 2.23, name: 'シェダル', jname: 'シェダル', con: 'カシオペア座' },
+  { ra: 0.945, dec: 60.717, mag: 2.47, name: 'ガンマカシオペア', jname: 'ツィー', con: 'カシオペア座' },
+  { ra: 1.430, dec: 60.235, mag: 2.68, name: 'ルクバー', jname: 'ルクバー', con: 'カシオペア座' },
+  { ra: 1.906, dec: 63.670, mag: 3.38, name: 'セギン', jname: 'セギン', con: 'カシオペア座' },
+  { ra: 18.615, dec: 38.784, mag: 0.03, name: 'ベガ', jname: '織女星', con: 'こと座' },
+  { ra: 19.847, dec: 8.868, mag: 0.77, name: 'アルタイル', jname: '彦星', con: 'わし座' },
+  { ra: 20.690, dec: 45.280, mag: 1.25, name: 'デネブ', jname: 'デネブ', con: 'はくちょう座' },
+  { ra: 16.490, dec: -26.432, mag: 1.06, name: 'アンタレス', jname: 'アンタレス', con: 'さそり座' },
+  { ra: 17.560, dec: -37.103, mag: 1.86, name: 'シャウラ', jname: 'シャウラ', con: 'さそり座' },
+  { ra: 16.005, dec: -22.622, mag: 2.32, name: 'ジュバ', jname: 'ジュバ', con: 'さそり座' },
+  { ra: 14.261, dec: 19.182, mag: -0.05, name: 'アルクトゥルス', jname: '麦星', con: 'うしかい座' },
+  { ra: 13.420, dec: -11.161, mag: 0.98, name: 'スピカ', jname: '真珠星', con: 'おとめ座' },
+  { ra: 5.919, dec: 7.407, mag: 0.42, name: 'ベテルギウス', jname: '平家星', con: 'オリオン座' },
+  { ra: 5.242, dec: -8.202, mag: 0.18, name: 'リゲル', jname: '源氏星', con: 'オリオン座' },
+  { ra: 5.418, dec: 6.350, mag: 1.64, name: 'ベラトリックス', jname: 'ベラトリックス', con: 'オリオン座' },
+  { ra: 5.679, dec: -1.943, mag: 2.23, name: 'アルニラム', jname: 'アルニラム', con: 'オリオン座' },
+  { ra: 5.603, dec: -1.202, mag: 1.69, name: 'ミンタカ', jname: 'ミンタカ', con: 'オリオン座' },
+  { ra: 5.795, dec: -1.943, mag: 1.74, name: 'アルニタク', jname: 'アルニタク', con: 'オリオン座' },
+  { ra: 5.533, dec: -5.910, mag: 2.77, name: 'サイフ', jname: 'サイフ', con: 'オリオン座' },
+  { ra: 6.752, dec: -16.716, mag: -1.46, name: 'シリウス', jname: '青星', con: 'おおいぬ座' },
+  { ra: 7.655, dec: 5.225, mag: 0.38, name: 'プロキオン', jname: 'プロキオン', con: 'こいぬ座' },
+  { ra: 5.992, dec: 44.948, mag: 0.08, name: 'カペラ', jname: 'カペラ', con: 'ぎょしゃ座' },
+  { ra: 5.438, dec: 28.608, mag: 1.65, name: 'エルナト', jname: 'エルナト', con: 'おうし座' },
+  { ra: 4.598, dec: 16.509, mag: 0.87, name: 'アルデバラン', jname: 'アルデバラン', con: 'おうし座' },
+  { ra: 7.755, dec: 28.026, mag: 1.14, name: 'ポルックス', jname: 'ポルックス', con: 'ふたご座' },
+  { ra: 7.576, dec: 31.888, mag: 1.58, name: 'カストル', jname: 'カストル', con: 'ふたご座' },
+  { ra: 10.140, dec: 11.967, mag: 1.36, name: 'レグルス', jname: 'レグルス', con: 'しし座' },
+  { ra: 11.818, dec: 14.572, mag: 2.14, name: 'デネボラ', jname: 'デネボラ', con: 'しし座' },
+  { ra: 10.333, dec: 19.842, mag: 2.61, name: 'アルギエバ', jname: 'アルギエバ', con: 'しし座' },
+  { ra: 0.140, dec: 29.090, mag: 2.06, name: 'アルフェラッツ', jname: 'アルフェラッツ', con: 'アンドロメダ座' },
+  { ra: 23.063, dec: 28.083, mag: 2.42, name: 'マルカブ', jname: 'マルカブ', con: 'ペガスス座' },
+  { ra: 0.221, dec: 15.184, mag: 2.83, name: 'アルゲニブ', jname: 'アルゲニブ', con: 'ペガスス座' },
+  { ra: 23.080, dec: 15.205, mag: 2.49, name: 'シェアト', jname: 'シェアト', con: 'ペガスス座' },
+  { ra: 22.961, dec: -29.622, mag: 1.16, name: 'フォーマルハウト', jname: 'フォーマルハウト', con: 'みなみのうお座' },
+];
+
+/* -------- 星座を結ぶ線 -------- */
+const LINES = [
+  ['ドゥベー', 'メラク'], ['メラク', 'フェクダ'], ['フェクダ', 'メグレズ'],
+  ['メグレズ', 'ドゥベー'], ['メグレズ', 'アリオト'], ['アリオト', 'ミザール'],
+  ['ミザール', 'アルカイド'],
+  ['カフ', 'シェダル'], ['シェダル', 'ツィー'], ['ツィー', 'ルクバー'], ['ルクバー', 'セギン'],
+  ['ベテルギウス', 'ベラトリックス'], ['ベラトリックス', 'ミンタカ'],
+  ['ミンタカ', 'アルニラム'], ['アルニラム', 'アルニタク'],
+  ['アルニタク', 'リゲル'], ['リゲル', 'サイフ'], ['サイフ', 'アルニタク'],
+  ['ベテルギウス', 'アルニタク'],
+  ['ジュバ', 'アンタレス'], ['アンタレス', 'シャウラ'],
+  ['マルカブ', 'アルゲニブ'], ['アルゲニブ', 'アルフェラッツ'],
+  ['アルフェラッツ', 'シェアト'], ['シェアト', 'マルカブ'],
+  ['カストル', 'ポルックス'],
+  ['レグルス', 'アルギエバ'], ['アルギエバ', 'デネボラ'],
+];
+
+/* -------- 逸話 -------- */
+const TALES = {
+  'こぐま座': '北極星。天の極にあり、夜通し動かぬ星である。航海者も旅人も、この一点を頼りに方位を知った。動かぬものが、動くものを導く──常の心構えと、心得るがよい。',
+  'おおぐま座': '北斗七星。柄杓の形をなす七つの星。中国では北斗を司る神を北斗星君と呼び、人の寿命を記す帳簿を持つと伝えられた。──時に、空を見上げて、わが命数を思え。',
+  'カシオペア座': 'Wの字を描く五つの星。ギリシャの伝承では、美貌を誇った王妃が天に縛められた姿。北の空に絶えず巡り、地平へ沈むことはない。',
+  'こと座': 'ベガ──織女星。七夕の織姫である。天の川の東岸に住み、年に一度、夏の夜にのみ彦星と逢う。──貴殿も、想う人があれば、この夜空を見るがよい。',
+  'わし座': 'アルタイル──彦星。織女と相対し、天の川の西岸に住む。古来、農耕の暦を告げる星とされた。',
+  'はくちょう座': 'デネブと、天の川を翼で渡る白鳥の姿。夏の大三角の一角。──ベガ、アルタイル、デネブの三星をつなぐ三角形は、夏の夜の道標である。',
+  'さそり座': 'アンタレス──火星に対抗する者、の意。赤く輝く一等星である。源平の時代、平家方の武士はこの赤さを己が運命と重ねたという。',
+  'うしかい座': 'アルクトゥルス──「熊の番人」。北斗七星の柄を伸ばした先に輝く橙色の一等星である。日本では麦星と呼び、麦秋の頃に天高く昇る。',
+  'おとめ座': 'スピカ──「麦の穂」の意。日本では真珠星とも。アルクトゥルスと並んで春の夜空を彩る。',
+  'オリオン座': '冬の夜空の王者。中央に三つ並ぶ星は三ツ星、その下に小三ツ星。──そして肩に赤いベテルギウス、足に青白いリゲル。源平合戦の頃、人々は前者を平家星、後者を源氏星と呼んだ。赤白二色の対峙が、世の興亡を映すかのようであった。',
+  'おおいぬ座': 'シリウス──全天で最も明るい恒星。日本では青星と呼ばれた。冬の夜、東の地平から青白く昇る姿は、まさしく一振りの刃の如し。',
+  'こいぬ座': 'プロキオン──「犬に先立つ」の意。シリウスより先に昇るゆえの名である。冬の大三角の一角を成す。',
+  'ぎょしゃ座': 'カペラ──「小さき牝山羊」。冬の北の空に高く昇る黄色い一等星である。',
+  'おうし座': 'アルデバラン──「後に従う者」。スバルを追う形で昇るゆえの名である。赤くひかる目のような星。',
+  'ふたご座': 'カストルとポルックス──双子の兄弟。一方は人の子、一方は神の子と伝えられる。死を分かちあい、共に星となった。',
+  'しし座': 'レグルス──「小さき王」。獅子の心臓に位置する一等星。春の到来を告げる。',
+  'アンドロメダ座': 'アルフェラッツ──ペガススの四辺形と繋がる星。乙女の頭にあたる位置である。両座は天上にて頭で結ばれている。',
+  'ペガスス座': '秋の夜空を支配する大きな四辺形。天馬の胴体である。北東の角アルフェラッツは、アンドロメダの頭をも兼ねる。',
+  'みなみのうお座': 'フォーマルハウト──「魚の口」の意。秋の南の低い空に、ぽつりと一つ輝く一等星である。',
+};
+
+/* -------- 一言メッセージ -------- */
+const REMARKS = {
+  general: [
+    '……今宵は、よく見える。',
+    '貴殿の見たい星はあるか。',
+    '星をひとつ。選ぶがよい。',
+    '……空が、静かであるな。',
+    'よい夜である。',
+    '星に触れてみるがよい',
+  ],
+  dusk: [
+    '西の空に、夕の名残があるな。',
+    '宵の口。\n星がぽつりぽつりと現れる',
+    '日が落ちたばかりだ。\nこれから、星が増えていく',
+  ],
+  night: [
+    '夜は、これからである。',
+    '星がよく見える頃だ。',
+    '……一等星から、追ってみるか。',
+  ],
+  midnight: [
+    '夜が更けたな。',
+    '……静かな刻である。',
+    '……貴殿、まだ眠れぬか。',
+    '深夜の星は、昼の星とは別物のようだな。',
+  ],
+  dawn: [
+    '東が、白み始めている。',
+    '夜明け前である。\n星は、間もなく退く。',
+    '……暁の星々は、夜の名残である。',
+  ],
+  day: [
+    '今は昼間である。\n星は、夜にまた見えよう。',
+    '空は明るいが、星々はそこにある。\n見えぬだけだ。',
+    '夜が来れば、また会える。',
+  ],
+  summer: [
+    '夏の大三角が、頭上にあるな。',
+    '天の川が、貴殿の真上を流れている。',
+    'さそりの赤い心臓が、南に見える。',
+  ],
+  winter: [
+    '冬の星々は、刃のように鋭い。',
+    'オリオンが、東から昇っている。',
+    '冬の大三角──\nシリウス、プロキオン、ベテルギウス。',
+  ],
+  spring: [
+    '北斗の柄を伸ばせばアルクトゥルスである。',
+    '麦星が、東の空に高い。',
+  ],
+  autumn: [
+    'ペガススの四辺形が、頭上にある。',
+    '秋の夜は、星が少ない。\n……静かであるな。',
+  ],
+};
+
+/* ============ 天文計算 ============ */
+const RAD = Math.PI / 180;
+const DEG = 180 / Math.PI;
+const RADIUS = 160;
+
+function julianDay(date) {
+  const Y = date.getUTCFullYear();
+  const M = date.getUTCMonth() + 1;
+  const D = date.getUTCDate();
+  const h = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  let y = Y, m = M;
+  if (m <= 2) { y -= 1; m += 12; }
+  const A = Math.floor(y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + D + B - 1524.5 + h / 24;
+}
+
+function gmst(date) {
+  const jd = julianDay(date);
+  const T = (jd - 2451545.0) / 36525;
+  let g = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
+        + 0.000387933 * T * T - T * T * T / 38710000;
+  g = ((g % 360) + 360) % 360;
+  return g / 15;
+}
+
+function lst(date, lon) {
+  return (gmst(date) + lon / 15 + 24) % 24;
+}
+
+function equatorialToHorizontal(ra, dec, lat, lst_h) {
+  const ha = (lst_h - ra) * 15;
+  const haR = ha * RAD;
+  const decR = dec * RAD;
+  const latR = lat * RAD;
+  const sinAlt = Math.sin(decR) * Math.sin(latR) + Math.cos(decR) * Math.cos(latR) * Math.cos(haR);
+  const alt = Math.asin(sinAlt) * DEG;
+  const cosAz = (Math.sin(decR) - Math.sin(alt * RAD) * Math.sin(latR))
+              / (Math.cos(alt * RAD) * Math.cos(latR));
+  let az = Math.acos(Math.max(-1, Math.min(1, cosAz))) * DEG;
+  if (Math.sin(haR) > 0) az = 360 - az;
+  return { alt, az };
+}
+
+function projectStar(alt, az) {
+  if (alt < 0) return null;
+  const r = (1 - alt / 90) * RADIUS;
+  const theta = (az - 90) * RAD;
+  return { x: r * Math.cos(theta), y: r * Math.sin(theta) };
+}
+
+function starSize(mag) {
+  const m = Math.max(-2, Math.min(4, mag));
+  const r = 3.6 - m * 0.6;
+  const opacity = Math.max(0.4, 1 - (m + 1.5) * 0.12);
+  return { r: Math.max(0.6, r), opacity };
+}
+
+function getTimeBand(date) {
+  const h = date.getHours();
+  if (h >= 6 && h < 17) return 'day';
+  if (h >= 17 && h < 19) return 'dusk';
+  if (h >= 19 && h < 23) return 'night';
+  if (h >= 23 || h < 3) return 'midnight';
+  return 'dawn';
+}
+
+function getSeason(date) {
+  const m = date.getMonth() + 1;
+  if (m >= 3 && m <= 5) return 'spring';
+  if (m >= 6 && m <= 8) return 'summer';
+  if (m >= 9 && m <= 11) return 'autumn';
+  return 'winter';
+}
+
+function pickRemark(date, seed) {
+  const band = getTimeBand(date);
+  const season = getSeason(date);
+  const isNightBand = band === 'dusk' || band === 'night' || band === 'midnight';
+  const pool = [
+    ...REMARKS.general,
+    ...REMARKS[band],
+    ...(isNightBand ? REMARKS[season] : []),
+  ];
+  return pool[seed % pool.length];
+}
+
+/* ============ 状態 ============ */
+const state = {
+  now: new Date(),
+  coords: { lat: 35.4437, lon: 139.6380, label: '横浜（既定）' },
+  locStatus: 'idle', // idle | loading | granted | denied
+  selected: null,
+  remarkSeed: Math.floor(Math.random() * 1000),
+};
+
+/* ============ DOM参照 ============ */
+const $ = (id) => document.getElementById(id);
+const disk = $('disk');
+const dateTimeEl = $('date-time');
+const coordsEl = $('coords');
+const overlayArea = $('overlay-area');
+
+/* ============ 背景星の生成 ============ */
+function generateBgStars() {
+  const container = $('bg-stars');
+  for (let i = 0; i < 60; i++) {
+    const star = document.createElement('span');
+    star.className = 'bg-star';
+    star.style.left = `${(i * 137.5) % 100}%`;
+    star.style.top = `${(i * 53.7) % 100}%`;
+    star.style.animationDelay = `${(i * 0.7) % 6}s`;
+    star.style.animationDuration = `${4 + (i % 5)}s`;
+    const size = i % 7 === 0 ? '2px' : '1px';
+    star.style.width = size;
+    star.style.height = size;
+    container.appendChild(star);
+  }
+}
+
+/* ============ ヘッダー描画 ============ */
+function renderHeader() {
+  const d = state.now;
+  const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  dateTimeEl.textContent = `${dateStr}　${timeStr}`;
+  coordsEl.textContent = `北緯${state.coords.lat.toFixed(2)}度　東経${state.coords.lon.toFixed(2)}度`;
+}
+
+/* ============ 星座盤描画 ============ */
+function renderDisk() {
+  const lst_h = lst(state.now, state.coords.lon);
+  const projected = STARS.map((s) => {
+    const { alt, az } = equatorialToHorizontal(s.ra, s.dec, state.coords.lat, lst_h);
+    const p = projectStar(alt, az);
+    return { ...s, alt, az, ...(p || {}), visible: p !== null };
+  });
+  const visibleStars = projected.filter((s) => s.visible);
+  const starByName = {};
+  visibleStars.forEach((s) => { starByName[s.name] = s; });
+
+  const selectedCon = state.selected ? state.selected.con : null;
+
+  // SVG構築
+  const svgns = 'http://www.w3.org/2000/svg';
+  // 既存内容をクリア
+  while (disk.firstChild) disk.removeChild(disk.firstChild);
+
+  // 背景の透明な円（何もない所のクリック判定）
+  const bgCircle = document.createElementNS(svgns, 'circle');
+  bgCircle.setAttribute('cx', 0);
+  bgCircle.setAttribute('cy', 0);
+  bgCircle.setAttribute('r', RADIUS + 20);
+  bgCircle.setAttribute('fill', 'transparent');
+  disk.appendChild(bgCircle);
+
+  // 外周
+  const outer = document.createElementNS(svgns, 'circle');
+  outer.setAttribute('cx', 0); outer.setAttribute('cy', 0); outer.setAttribute('r', RADIUS);
+  outer.setAttribute('fill', 'none');
+  outer.setAttribute('stroke', 'rgba(212,224,237,0.18)');
+  outer.setAttribute('stroke-width', '0.5');
+  disk.appendChild(outer);
+
+  // 高度線
+  [RADIUS * 2 / 3, RADIUS / 3].forEach((r) => {
+    const c = document.createElementNS(svgns, 'circle');
+    c.setAttribute('cx', 0); c.setAttribute('cy', 0); c.setAttribute('r', r);
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', 'rgba(212,224,237,0.07)');
+    c.setAttribute('stroke-width', '0.3');
+    c.setAttribute('stroke-dasharray', '2 3');
+    disk.appendChild(c);
+  });
+
+  // 方位記号
+  const dirs = [
+    { x: 0, y: -RADIUS - 6, t: '北', anchor: 'middle' },
+    { x: RADIUS + 6, y: 3, t: '西', anchor: 'start' },
+    { x: 0, y: RADIUS + 12, t: '南', anchor: 'middle' },
+    { x: -RADIUS - 6, y: 3, t: '東', anchor: 'end' },
+  ];
+  dirs.forEach((d) => {
+    const t = document.createElementNS(svgns, 'text');
+    t.setAttribute('x', d.x); t.setAttribute('y', d.y);
+    t.setAttribute('text-anchor', d.anchor);
+    t.setAttribute('class', 'dir-text');
+    t.textContent = d.t;
+    disk.appendChild(t);
+  });
+
+  // 星座線
+  LINES.forEach(([a, b]) => {
+    const sa = starByName[a], sb = starByName[b];
+    if (!sa || !sb) return;
+    const highlight = selectedCon && (sa.con === selectedCon || sb.con === selectedCon);
+    const line = document.createElementNS(svgns, 'line');
+    line.setAttribute('x1', sa.x); line.setAttribute('y1', sa.y);
+    line.setAttribute('x2', sb.x); line.setAttribute('y2', sb.y);
+    line.setAttribute('stroke', highlight ? 'rgba(212,224,237,0.55)' : 'rgba(212,224,237,0.13)');
+    line.setAttribute('stroke-width', highlight ? '0.8' : '0.4');
+    disk.appendChild(line);
+  });
+
+  // 星
+  visibleStars.forEach((s) => {
+    const { r, opacity } = starSize(s.mag);
+    const isHighlight = selectedCon && s.con === selectedCon;
+    const isSelected = state.selected && state.selected.name === s.name;
+
+    const g = document.createElementNS(svgns, 'g');
+    g.setAttribute('class', 'star-group');
+    g.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.selected = s;
+      renderDisk();
+      renderOverlay();
+    });
+
+    // タップ判定用の透明円
+    const hit = document.createElementNS(svgns, 'circle');
+    hit.setAttribute('cx', s.x); hit.setAttribute('cy', s.y);
+    hit.setAttribute('r', Math.max(8, r * 3));
+    hit.setAttribute('fill', 'transparent');
+    g.appendChild(hit);
+
+    // 星本体
+    const star = document.createElementNS(svgns, 'circle');
+    star.setAttribute('cx', s.x); star.setAttribute('cy', s.y);
+    star.setAttribute('r', isHighlight ? r * 1.3 : r);
+    star.setAttribute('fill', '#f0f4f8');
+    star.setAttribute('opacity', isHighlight ? Math.min(1, opacity + 0.3) : opacity);
+    g.appendChild(star);
+
+    // 一等星の光彩
+    if (s.mag < 1.5) {
+      const halo = document.createElementNS(svgns, 'circle');
+      halo.setAttribute('cx', s.x); halo.setAttribute('cy', s.y);
+      halo.setAttribute('r', r * 2.5);
+      halo.setAttribute('fill', '#d4e0ed');
+      halo.setAttribute('opacity', isHighlight ? '0.25' : '0.12');
+      g.appendChild(halo);
+    }
+
+    // 選択中の脈動
+    if (isSelected) {
+      const ring = document.createElementNS(svgns, 'circle');
+      ring.setAttribute('cx', s.x); ring.setAttribute('cy', s.y);
+      ring.setAttribute('r', r * 3);
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke', '#f0f4f8');
+      ring.setAttribute('stroke-width', '0.4');
+      ring.setAttribute('opacity', '0.6');
+
+      const animR = document.createElementNS(svgns, 'animate');
+      animR.setAttribute('attributeName', 'r');
+      animR.setAttribute('from', r * 2);
+      animR.setAttribute('to', r * 5);
+      animR.setAttribute('dur', '2s');
+      animR.setAttribute('repeatCount', 'indefinite');
+      ring.appendChild(animR);
+
+      const animO = document.createElementNS(svgns, 'animate');
+      animO.setAttribute('attributeName', 'opacity');
+      animO.setAttribute('from', '0.6');
+      animO.setAttribute('to', '0');
+      animO.setAttribute('dur', '2s');
+      animO.setAttribute('repeatCount', 'indefinite');
+      ring.appendChild(animO);
+
+      g.appendChild(ring);
+    }
+
+    disk.appendChild(g);
+  });
+}
+
+/* ============ オーバーレイ描画 ============ */
+function renderOverlay() {
+  while (overlayArea.firstChild) overlayArea.removeChild(overlayArea.firstChild);
+
+  if (state.selected) {
+    // 透明な背景タップ層
+    const backdrop = document.createElement('div');
+    backdrop.className = 'backdrop';
+    backdrop.addEventListener('click', closeSelection);
+    overlayArea.appendChild(backdrop);
+
+    // 逸話パネル
+    const tale = document.createElement('div');
+    tale.className = 'tale-float';
+    tale.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSelection();
+    });
+
+    const inner = document.createElement('div');
+    inner.className = 'tale-inner';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'star-name';
+    nameEl.textContent = state.selected.jname !== state.selected.name
+      ? `${state.selected.name}　／　${state.selected.jname}`
+      : state.selected.name;
+    inner.appendChild(nameEl);
+
+    const conEl = document.createElement('div');
+    conEl.className = 'constellation';
+    conEl.textContent = state.selected.con;
+    inner.appendChild(conEl);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'tale-text';
+    textEl.textContent = TALES[state.selected.con] || '──この星にまつわる伝承は、まだ私の手元にない。';
+    inner.appendChild(textEl);
+
+    tale.appendChild(inner);
+    overlayArea.appendChild(tale);
+  } else {
+    // 一言メッセージ
+    const float = document.createElement('div');
+    float.className = 'remark-float';
+
+    const remarkEl = document.createElement('div');
+    remarkEl.className = 'remark';
+    remarkEl.textContent = pickRemark(state.now, state.remarkSeed);
+    float.appendChild(remarkEl);
+
+    if (state.locStatus === 'denied') {
+      const note = document.createElement('div');
+      note.className = 'loc-note';
+      note.textContent = '※ 位置情報の取得が許されぬゆえ、横浜の空を映している';
+      float.appendChild(note);
+    }
+
+    overlayArea.appendChild(float);
+  }
+}
+
+function closeSelection() {
+  if (!state.selected) return;
+  state.selected = null;
+  state.remarkSeed += 1;
+  renderDisk();
+  renderOverlay();
+}
+
+/* ============ 位置情報の取得 ============ */
+function fetchLocation() {
+  if (!navigator.geolocation) {
+    state.locStatus = 'denied';
+    renderOverlay();
+    return;
+  }
+  state.locStatus = 'loading';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      state.coords = {
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        label: '現在地',
+      };
+      state.locStatus = 'granted';
+      renderHeader();
+      renderDisk();
+      renderOverlay();
+    },
+    () => {
+      state.locStatus = 'denied';
+      renderOverlay();
+    },
+    { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
+  );
+}
+
+/* ============ 時刻の更新 ============ */
+function startClock() {
+  setInterval(() => {
+    state.now = new Date();
+    renderHeader();
+    renderDisk();
+    // 時刻帯が変わる可能性があるので、選択していない時は一言も更新候補
+    // ただし1分ごとに切り替わると煩いので、ここでは星位置のみ再計算
+  }, 60 * 1000);
+}
+
+/* ============ 初期化 ============ */
+function init() {
+  generateBgStars();
+  renderHeader();
+  renderDisk();
+  renderOverlay();
+  fetchLocation();
+  startClock();
+}
+
+/* Service Worker登録 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {/* 黙殺 */});
+  });
+}
+
+init();
+</script>
+</body>
+</html>
