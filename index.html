@@ -52,6 +52,7 @@ html, body {
 body {
     position: relative;
     min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
     background-color: var(--bg-deep);
     background-image: radial-gradient(ellipse at 50% 30%, var(--bg-mid) 0%, var(--bg-deep) 60%, var(--bg-low) 100%);
     background-repeat: no-repeat;
@@ -73,11 +74,13 @@ body {
     position: relative;
     width: 100%;
     min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
     padding: calc(env(safe-area-inset-top) + 1.5rem) 1rem calc(env(safe-area-inset-bottom) + 1rem);
     display: flex;
     flex-direction: column;
     align-items: center;
   }
+
   /* ============ 背景：装飾用の星々 ============ */
 .bg-stars {
     position: absolute;
@@ -286,6 +289,34 @@ body {
    星座盤 ── 武家世界観のプラネタリウム
    ============================================================ */
 
+/* ============ viewportの実高さを CSS変数に書き込む ============
+   iOS standalone PWA で 100dvh が初回確定しない問題への対策。
+   resize / orientationchange でも追従する。 */
+function updateAppHeight() {
+  // window.innerHeight は実際に描画に使われる高さを返す
+  document.documentElement.style.setProperty(
+    '--app-height',
+    `${window.innerHeight}px`
+  );
+}
+
+// 初回：複数のタイミングで測り直して、確定後の値を捕まえる
+updateAppHeight();
+requestAnimationFrame(() => {
+  updateAppHeight();
+  requestAnimationFrame(updateAppHeight);
+});
+// 読み込み完了時にも一度
+window.addEventListener('load', updateAppHeight);
+// 向き変更・サイズ変更に追従
+window.addEventListener('resize', updateAppHeight);
+window.addEventListener('orientationchange', () => {
+  // 向き変更直後は値がまだ古いことがあるので、少し遅らせて再計測
+  updateAppHeight();
+  setTimeout(updateAppHeight, 100);
+  setTimeout(updateAppHeight, 500);
+});
+
 /* -------- 主要恒星データ -------- */
 const STARS = [
   { ra: 2.530, dec: 89.264, mag: 1.97, name: '北極星', jname: 'ポラリス', con: 'こぐま座' },
@@ -355,7 +386,7 @@ const TALES = {
   'こぐま座': '北極星。天の極にあり、夜通し動かぬ星である。航海者も旅人も、この一点を頼りに方位を知った。動かぬものが、動くものを導く──常の心構えと、心得るがよい。',
   'おおぐま座': '北斗七星。柄杓の形をなす七つの星。中国では北斗を司る神を北斗星君と呼び、人の寿命を記す帳簿を持つと伝えられた。──時に、空を見上げて、わが命数を思え。',
   'カシオペア座': 'Wの字を描く五つの星。ギリシャの伝承では、美貌を誇った王妃が天に縛められた姿。北の空に絶えず巡り、地平へ沈むことはない。',
-  'こと座': 'ベガ──織女星。七夕の織姫である。天の川の東岸に住み、年に一度、夏の夜にのみ彦星と逢う。──貴殿も、想う人があれば、この夜空を見るがよい。',
+  'こと座': 'ベガ──織女星。七夕の織姫である。天の川の東岸に住み、年に一度、夏の夜にのみ彦星と逢う。',
   'わし座': 'アルタイル──彦星。織女と相対し、天の川の西岸に住む。古来、農耕の暦を告げる星とされた。',
   'はくちょう座': 'デネブと、天の川を翼で渡る白鳥の姿。夏の大三角の一角。──ベガ、アルタイル、デネブの三星をつなぐ三角形は、夏の夜の道標である。',
   'さそり座': 'アンタレス──火星に対抗する者、の意。赤く輝く一等星である。源平の時代、平家方の武士はこの赤さを己が運命と重ねたという。',
@@ -420,7 +451,7 @@ const REMARKS = {
     '冬の大三角──\nシリウス、プロキオン、ベテルギウス。',
   ],
   spring: [
-    '北斗の柄を伸ばせばアルクトゥルスである。',
+    '北斗の柄の先──アルクトゥルスである。',
     '麦星が、東の空に高い。',
   ],
   autumn: [
